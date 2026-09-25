@@ -1,0 +1,20 @@
+# Deny direct web access to files that should never be fetched over HTTP.
+<FilesMatch "^(config|config\.sample|lib|users|auth)\.php$">
+    Require all denied
+</FilesMatch>
+
+# The filter cache and the CLI tools are not web resources.
+RedirectMatch 404 ^/cache/
+RedirectMatch 404 ^/tools/
+RedirectMatch 404 ^/sql/
+
+# Don't advertise the PHP version.
+Header unset X-Powered-By
+ServerSignature Off
+
+# Basic response headers.
+<IfModule mod_headers.c>
+    Header always set X-Content-Type-Options "nosniff"
+    Header always set X-Frame-Options "SAMEORIGIN"
+    Header always set Referrer-Policy "same-origin"
+</IfModule>

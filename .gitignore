@@ -1,0 +1,14 @@
+# Real credentials — never commit.
+config.php
+
+# Runtime
+cache/
+*.log
+
+# Editor / OS noise
+.vscode/
+.idea/
+Thumbs.db
+desktop.ini
+*~
+"* copy.php"
