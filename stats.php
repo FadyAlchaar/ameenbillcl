@@ -141,6 +141,8 @@ if (isset($_GET['kpi']) && $_GET['kpi'] == 1) {
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;900&family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&display=swap" rel="stylesheet">
+    <!-- Local icon font — Tabler Icons (MIT) -->
+    <link rel="stylesheet" href="assets/icons/tabler/tabler-icons.min.css">
     <script>
         (function () {
             try {
@@ -525,28 +527,29 @@ if (isset($_GET['kpi']) && $_GET['kpi'] == 1) {
                     <div class="menu-dropdown" id="menuDropdown" role="menu">
                         <div class="menu-section">
                             <div class="menu-section-title">التنقل</div>
-                            <a href="index.php" class="menu-item"><span class="menu-item-icon">🏠</span><span>الرئيسية</span></a>
-                            <a href="stats.php" class="menu-item"><span class="menu-item-icon">📈</span><span>الإحصائيات</span></a>
-                            <a href="products.php" class="menu-item"><span class="menu-item-icon">📦</span><span>الأصناف</span></a>
-                            <a href="inventory.php" class="menu-item"><span class="menu-item-icon">🏭</span><span>المخزون</span></a>
-                            <a href="movements.php" class="menu-item"><span class="menu-item-icon">📄</span><span>حركة المواد</span></a>
-                            <a href="serial-movements.php" class="menu-item"><span class="menu-item-icon">🔢</span><span>حركة الأرقام التسلسلية</span></a>
-                            <a href="customers.php" class="menu-item"><span class="menu-item-icon">👥</span><span>الزبائن</span></a>
-                            <a href="salesmen.php" class="menu-item"><span class="menu-item-icon">🧑</span><span>البائعون</span></a>
-                            <a href="accounts.php" class="menu-item"><span class="menu-item-icon">💰</span><span>الحسابات</span></a>
-                            <a href="bills.php" class="menu-item"><span class="menu-item-icon">📋</span><span>أنماط الفواتير</span></a>
-                            <a href="cost-centers.php" class="menu-item"><span class="menu-item-icon">💼</span><span>مراكز التكلفة</span></a>
+                            <a href="index.php" class="menu-item"><span class="menu-item-icon"><i class="ti ti-home"></i></span><span>الرئيسية</span></a>
+                            <a href="dashboard.php" class="menu-item"><span class="menu-item-icon"><i class="ti ti-layout-dashboard"></i></span><span>لوحة المتابعة</span></a>
+                            <a href="stats.php" class="menu-item"><span class="menu-item-icon"><i class="ti ti-chart-bar"></i></span><span>الإحصائيات</span></a>
+                            <a href="products.php" class="menu-item"><span class="menu-item-icon"><i class="ti ti-package"></i></span><span>الأصناف</span></a>
+                            <a href="inventory.php" class="menu-item"><span class="menu-item-icon"><i class="ti ti-building-warehouse"></i></span><span>المخزون</span></a>
+                            <a href="movements.php" class="menu-item"><span class="menu-item-icon"><i class="ti ti-file-text"></i></span><span>حركة المواد</span></a>
+                            <a href="serial-movements.php" class="menu-item"><span class="menu-item-icon"><i class="ti ti-barcode"></i></span><span>حركة الأرقام التسلسلية</span></a>
+                            <a href="customers.php" class="menu-item"><span class="menu-item-icon"><i class="ti ti-users"></i></span><span>الزبائن</span></a>
+                            <a href="salesmen.php" class="menu-item"><span class="menu-item-icon"><i class="ti ti-user"></i></span><span>البائعون</span></a>
+                            <a href="accounts.php" class="menu-item"><span class="menu-item-icon"><i class="ti ti-wallet"></i></span><span>الحسابات</span></a>
+                            <a href="bills.php" class="menu-item"><span class="menu-item-icon"><i class="ti ti-receipt"></i></span><span>أنماط الفواتير</span></a>
+                            <a href="cost-centers.php" class="menu-item"><span class="menu-item-icon"><i class="ti ti-briefcase"></i></span><span>مراكز التكلفة</span></a>
                         </div>
                         <div class="menu-section">
                             <div class="menu-section-title">التفضيلات</div>
                             <button type="button" class="menu-item" id="themeToggleBtn">
-                                <span class="menu-item-icon" id="themeToggleIcon">📜</span>
+                                <span class="menu-item-icon" id="themeToggleIcon"><i class="ti ti-moon"></i></span>
                                 <span>تبديل النمط</span>
                             </button>
                         </div>
                         <div class="menu-section">
                             <a href="logout.php" class="menu-item menu-item-danger">
-                                <span class="menu-item-icon">🚪</span>
+                                <span class="menu-item-icon"><i class="ti ti-logout"></i></span>
                                 <span>تسجيل الخروج</span>
                             </a>
                         </div>
@@ -571,25 +574,25 @@ if (isset($_GET['kpi']) && $_GET['kpi'] == 1) {
 
         <div class="kpi-grid">
             <div class="kpi-card kpi-primary">
-                <div class="kpi-label">💰 إجمالي المبيعات</div>
+                <div class="kpi-label"><i class="ti ti-dollar-sign"></i> إجمالي المبيعات</div>
                 <div class="kpi-value" id="kpiTotal">—</div>
                 <div class="kpi-sub" id="kpiRange">—</div>
             </div>
             <div class="kpi-card">
-                <div class="kpi-label">📄 عدد الفواتير</div>
+                <div class="kpi-label"><i class="ti ti-file-text"></i> عدد الفواتير</div>
                 <div class="kpi-value" id="kpiCount">—</div>
             </div>
             <div class="kpi-card">
-                <div class="kpi-label">📈 متوسط الفاتورة</div>
+                <div class="kpi-label"><i class="ti ti-chart-bar"></i> متوسط الفاتورة</div>
                 <div class="kpi-value" id="kpiAvg">—</div>
             </div>
             <div class="kpi-card kpi-cash">
-                <div class="kpi-label">💵 نقدي</div>
+                <div class="kpi-label"><i class="ti ti-money"></i> نقدي</div>
                 <div class="kpi-value" id="kpiCash">—</div>
                 <div class="kpi-sub" id="kpiCashSub">—</div>
             </div>
             <div class="kpi-card kpi-credit">
-                <div class="kpi-label">📝 آجل</div>
+                <div class="kpi-label"><i class="ti ti-credit-card"></i> آجل</div>
                 <div class="kpi-value" id="kpiCredit">—</div>
                 <div class="kpi-sub" id="kpiCreditSub">—</div>
             </div>

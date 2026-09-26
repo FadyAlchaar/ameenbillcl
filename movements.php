@@ -191,6 +191,67 @@ if (isset($_GET['billtypes']) && $_GET['billtypes'] == 1) {
     }
     exit;
 }
+
+// ─── API: material search (LIKE on Name / Code / BarCode) ────────
+if (isset($_GET['search']) && $_GET['search'] == 1) {
+    header('Content-Type: application/json');
+    $q = isset($_GET['q']) ? trim($_GET['q']) : '';
+
+    // Too short / empty → nothing to return, but don't error.
+    if (mb_strlen($q) < 1) {
+        echo json_encode(['materials' => []]);
+        exit;
+    }
+
+    try {
+        $pdo  = getDBConnection();
+        $like = '%' . $q . '%';
+
+        // Distinct placeholders: SQLSRV native prepares refuse to reuse one.
+        // Order favours exact Code / BarCode matches, then prefix matches on
+        // Name, then everything else — so scanning a barcode into the box
+        // pins the exact item to the top.
+        $stmt = $pdo->prepare("
+            SELECT TOP 25 GUID, Name, Code, BarCode, Unity
+            FROM mt000
+            WHERE Name LIKE :s1 OR Code LIKE :s2 OR BarCode LIKE :s3
+            ORDER BY
+                CASE
+                    WHEN Code    = :exact1 THEN 0
+                    WHEN BarCode = :exact2 THEN 0
+                    WHEN Name LIKE :starts THEN 1
+                    ELSE 2
+                END,
+                Name
+        ");
+        $stmt->execute([
+            ':s1'     => $like,
+            ':s2'     => $like,
+            ':s3'     => $like,
+            ':exact1' => $q,
+            ':exact2' => $q,
+            ':starts' => $q . '%',
+        ]);
+
+        $out = [];
+        foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $r) {
+            $out[] = [
+                'GUID'    => $r['GUID'],
+                'Name'    => $r['Name'],
+                'Code'    => $r['Code'],
+                'BarCode' => $r['BarCode'],
+                'Unit'    => $r['Unity'],
+            ];
+        }
+        echo json_encode(
+            ['materials' => $out],
+            JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE
+        );
+    } catch (Throwable $e) {
+        jsonFail($e, 500, 'Could not search materials.');
+    }
+    exit;
+}
 ?>
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
@@ -201,6 +262,8 @@ if (isset($_GET['billtypes']) && $_GET['billtypes'] == 1) {
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;900&family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&display=swap" rel="stylesheet">
+    <!-- Local icon font — Tabler Icons (MIT) -->
+    <link rel="stylesheet" href="assets/icons/tabler/tabler-icons.min.css">
     <script>
         (function () {
             try {
@@ -459,6 +522,66 @@ if (isset($_GET['billtypes']) && $_GET['billtypes'] == 1) {
             .kpi-value { font-size: 1rem; }
             .kpi-card.kpi-stock .kpi-value { font-size: 1.15rem; }
         }
+        /* ── Material search (top of page) ─────────────────────── */
+        .mat-search {
+            background: var(--surface);
+            border: 2px solid var(--primary);
+            border-radius: var(--radius);
+            padding: 14px 18px;
+            margin-bottom: 16px;
+            display: flex; align-items: center; gap: 12px;
+            box-shadow: 0 2px 12px rgba(184,134,60,0.15);
+        }
+        .mat-search label {
+            font-size: 0.85rem; font-weight: 800;
+            color: var(--primary-dark); white-space: nowrap;
+        }
+        .ms-wrap { position: relative; flex: 1; min-width: 0; }
+        .ms-wrap input {
+            width: 100%;
+            padding: 10px 16px;
+            border: 1px solid var(--border); border-radius: 9px;
+            background: var(--bg); color: var(--text);
+            font-family: inherit; font-size: 0.95rem;
+        }
+        .ms-wrap input:focus {
+            outline: none; border-color: var(--primary);
+            box-shadow: 0 0 0 3px var(--primary-light);
+        }
+        .ms-panel {
+            display: none;
+            position: absolute;
+            top: calc(100% + 6px); left: 0; right: 0;
+            background: var(--surface); border: 1px solid var(--border);
+            border-radius: 10px;
+            box-shadow: 0 10px 30px rgba(29,42,53,0.18);
+            max-height: 320px; overflow-y: auto;
+            z-index: 50; padding: 4px;
+        }
+        .ms-wrap.open .ms-panel { display: block; }
+        .ms-option {
+            padding: 9px 12px; border-radius: 7px; cursor: pointer;
+            text-align: right;
+        }
+        .ms-option:hover { background: var(--primary-light); }
+        .ms-opt-name {
+            font-size: 0.88rem; font-weight: 700; color: var(--text);
+        }
+        .ms-opt-meta {
+            font-size: 0.72rem; color: var(--text-muted);
+            margin-top: 2px; font-family: var(--font-num);
+        }
+        .ms-empty {
+            padding: 12px; text-align: center;
+            color: var(--text-muted); font-size: 0.8rem;
+        }
+
+        @media (max-width: 600px) {
+            .mat-search { flex-direction: column; align-items: stretch; gap: 8px; }
+            .mat-search label { font-size: 0.78rem; }
+            .ms-wrap input { font-size: 0.9rem; padding: 9px 12px; }
+        }
+
     </style>
 </head>
 <body>
@@ -471,17 +594,18 @@ if (isset($_GET['billtypes']) && $_GET['billtypes'] == 1) {
                     <div class="menu-dropdown" id="menuDropdown" role="menu">
                         <div class="menu-section">
                             <div class="menu-section-title">التنقل</div>
-                            <a href="index.php" class="menu-item"><span class="menu-item-icon">🏠</span><span>الرئيسية</span></a>
-                            <a href="stats.php" class="menu-item"><span class="menu-item-icon">📈</span><span>الإحصائيات</span></a>
-                            <a href="products.php" class="menu-item"><span class="menu-item-icon">📦</span><span>الأصناف</span></a>
-                            <a href="inventory.php" class="menu-item"><span class="menu-item-icon">🏭</span><span>المخزون</span></a>
-                            <a href="movements.php" class="menu-item"><span class="menu-item-icon">📄</span><span>حركة المواد</span></a>
-                            <a href="serial-movements.php" class="menu-item"><span class="menu-item-icon">🔢</span><span>حركة الأرقام التسلسلية</span></a>
-                            <a href="customers.php" class="menu-item"><span class="menu-item-icon">👥</span><span>الزبائن</span></a>
-                            <a href="salesmen.php" class="menu-item"><span class="menu-item-icon">🧑</span><span>البائعون</span></a>
-                            <a href="accounts.php" class="menu-item"><span class="menu-item-icon">💰</span><span>الحسابات</span></a>
-                            <a href="bills.php" class="menu-item"><span class="menu-item-icon">📋</span><span>أنماط الفواتير</span></a>
-                            <a href="cost-centers.php" class="menu-item"><span class="menu-item-icon">💼</span><span>مراكز التكلفة</span></a>
+                            <a href="index.php" class="menu-item"><span class="tile-icon"><i class="ti ti-home"></i></span><span>الرئيسية</span></a>
+                            <a href="dashboard.php" class="menu-item"><span class="tile-icon"><i class="ti ti-layout-dashboard"></i></span><span>لوحة المتابعة</span></a>
+                            <a href="stats.php" class="menu-item"><span class="tile-icon"><i class="ti ti-chart-bar"></i></span><span>الإحصائيات</span></a>
+                            <a href="products.php" class="menu-item"><span class="tile-icon"><i class="ti ti-package"></i></span><span>الأصناف</span></a>
+                            <a href="inventory.php" class="menu-item"><span class="tile-icon"><i class="ti ti-building-warehouse"></i></span><span>المخزون</span></a>
+                            <a href="movements.php" class="menu-item"><span class="tile-icon"><i class="ti ti-file-text"></i></span><span>حركة المواد</span></a>
+                            <a href="serial-movements.php" class="menu-item"><span class="tile-icon"><i class="ti ti-barcode"></i></span><span>حركة الأرقام التسلسلية</span></a>
+                            <a href="customers.php" class="menu-item"><span class="tile-icon"><i class="ti ti-users"></i></span><span>الزبائن</span></a>
+                            <a href="salesmen.php" class="menu-item"><span class="tile-icon"><i class="ti ti-user"></i></span><span>البائعون</span></a>
+                            <a href="accounts.php" class="menu-item"><span class="tile-icon"><i class="ti ti-wallet"></i></span><span>الحسابات</span></a>
+                            <a href="bills.php" class="menu-item"><span class="tile-icon"><i class="ti ti-receipt"></i></span><span>أنماط الفواتير</span></a>
+                            <a href="cost-centers.php" class="menu-item"><span class="tile-icon"><i class="ti ti-briefcase"></i></span><span>مراكز التكلفة</span></a>
                         </div>
                         <div class="menu-section">
                             <div class="menu-section-title">التفضيلات</div>
@@ -498,6 +622,17 @@ if (isset($_GET['billtypes']) && $_GET['billtypes'] == 1) {
                     </div>
                 </div>
                 <h1>📄 حركة صنف</h1>
+            </div>
+        </div>
+
+        <!-- Item search — pinned above the header so it's always reachable -->
+        <div class="mat-search">
+            <label>🔎 الصنف</label>
+            <div class="ms-wrap" id="matSearchWrap">
+                <input type="text" id="matSearchInput"
+                    placeholder="ابحث بالاسم أو الكود أو الباركود..."
+                    autocomplete="off" spellcheck="false">
+                <div class="ms-panel" id="matSearchPanel"></div>
             </div>
         </div>
 
@@ -625,7 +760,7 @@ if (isset($_GET['billtypes']) && $_GET['billtypes'] == 1) {
 
         // ---------- Routing ----------
         const params     = new URLSearchParams(window.location.search);
-        const materialGuid = params.get('mat');
+        let   materialGuid = params.get('mat');
 
         if (!materialGuid) {
             document.getElementById('matName').textContent = 'خطأ';
@@ -699,6 +834,7 @@ if (isset($_GET['billtypes']) && $_GET['billtypes'] == 1) {
             loadLedger();
         });
 
+
         // ---------- Load bill types once ----------
         async function loadBillTypes() {
             try {
@@ -735,6 +871,7 @@ if (isset($_GET['billtypes']) && $_GET['billtypes'] == 1) {
                 // Material header
                 const m = data.material;
                 document.getElementById('matName').textContent = m.Name || '(بدون اسم)';
+                matSearchInput.value = m.Name || '';
                 document.getElementById('matSub').textContent  =
                     (m.Code ? 'الكود: ' + m.Code : '') +
                     (m.BarCode ? ' · الباركود: ' + m.BarCode : '') +
@@ -770,7 +907,7 @@ if (isset($_GET['billtypes']) && $_GET['billtypes'] == 1) {
                         ? '<span class="badge-in">⬇️ إدخال</span>'
                         : '<span class="badge-out">⬆️ إخراج</span>';
                     const billLink = r.billGuid
-                        ? `<a class="bill-link" href="index.php?bill=${encodeURIComponent(r.billGuid)}" target="_blank">${escapeHtml(r.billRef || '-')}</a>`
+                        ? `<a class="bill-link" href="dashboard.php?bill=${encodeURIComponent(r.billGuid)}" target="_blank">${escapeHtml(r.billRef || '-')}</a>`
                         : escapeHtml(r.billRef || '-');
 
                     html += `<tr>
@@ -794,11 +931,134 @@ if (isset($_GET['billtypes']) && $_GET['billtypes'] == 1) {
             }
         }
 
-        // ---------- Bootstrap ----------
-        (async () => {
-            if (!materialGuid) return;
-            await loadBillTypes();
+        // ---------- Material search (top of page) ----------
+const matSearchInput = document.getElementById('matSearchInput');
+const matSearchPanel = document.getElementById('matSearchPanel');
+const matSearchWrap  = document.getElementById('matSearchWrap');
 
+let searchDebounce = null;
+let searchAbort    = null;
+
+function openSearchPanel()  { matSearchWrap.classList.add('open'); }
+function closeSearchPanel() { matSearchWrap.classList.remove('open'); }
+
+async function doSearch(q) {
+    if (!q) {
+        matSearchPanel.innerHTML = '<div class="ms-empty">اكتب للبحث...</div>';
+        return;
+    }
+    if (searchAbort) searchAbort.abort();
+    searchAbort = new AbortController();
+
+    try {
+        const resp = await fetch('?search=1&q=' + encodeURIComponent(q), {
+            cache: 'no-store',
+            signal: searchAbort.signal,
+        });
+        if (resp.status === 401) { window.location.href = 'login.php'; return; }
+        const data = await resp.json();
+        if (!data || !Array.isArray(data.materials)) return;
+
+        if (!data.materials.length) {
+            matSearchPanel.innerHTML = '<div class="ms-empty">لا توجد نتائج.</div>';
+            return;
+        }
+
+        let html = '';
+        for (const m of data.materials) {
+            const meta = [m.Code, m.BarCode].filter(Boolean).join(' · ');
+            html += `<div class="ms-option"
+                          data-guid="${escapeHtml(m.GUID)}"
+                          data-name="${escapeHtml(m.Name || '')}">
+                <div class="ms-opt-name">${escapeHtml(m.Name || '-')}</div>
+                ${meta ? `<div class="ms-opt-meta">${escapeHtml(meta)}</div>` : ''}
+            </div>`;
+        }
+        matSearchPanel.innerHTML = html;
+        matSearchPanel.querySelectorAll('.ms-option').forEach(el => {
+            el.addEventListener('mousedown', (ev) => {
+                ev.preventDefault();   // keep focus so blur doesn't close the panel first
+                selectMaterial(el.dataset.guid, el.dataset.name);
+            });
+        });
+    } catch (e) {
+        if (e.name === 'AbortError') return;
+        console.error(e);
+    }
+}
+
+function selectMaterial(guid, name) {
+    matSearchInput.value = name || '';
+    closeSearchPanel();
+    if (guid === materialGuid) return;   // already loaded
+
+    materialGuid = guid;
+
+    // Keep the URL in sync without a reload, so the link is shareable.
+    try {
+        const url = new URL(window.location.href);
+        url.searchParams.set('mat', guid);
+        window.history.pushState({ mat: guid }, '', url);
+    } catch (e) {}
+
+    // Reload the ledger with the current (or default) date range.
+    const saved = loadSavedFilter();
+    if (saved) {
+        currentRange = saved;
+        document.getElementById('dateFrom').value = saved.from;
+        document.getElementById('dateTo').value   = saved.to;
+        setActiveChip(null);
+        loadLedger();
+    } else {
+        applyPreset('month');
+    }
+}
+
+matSearchInput.addEventListener('focus', () => {
+    openSearchPanel();
+    if (!matSearchPanel.innerHTML.trim()) doSearch(matSearchInput.value.trim());
+});
+matSearchInput.addEventListener('input', () => {
+    openSearchPanel();
+    clearTimeout(searchDebounce);
+    const q = matSearchInput.value.trim();
+    searchDebounce = setTimeout(() => doSearch(q), 250);
+});
+matSearchInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+        e.preventDefault();
+        closeSearchPanel();
+        matSearchInput.blur();
+    } else if (e.key === 'Enter') {
+        e.preventDefault();
+        clearTimeout(searchDebounce);
+        // Pick the first visible result
+        const first = matSearchPanel.querySelector('.ms-option');
+        if (first) selectMaterial(first.dataset.guid, first.dataset.name);
+    }
+});
+document.addEventListener('mousedown', (e) => {
+    if (matSearchWrap && !matSearchWrap.contains(e.target)) closeSearchPanel();
+});
+
+// Support back/forward buttons after an inline item switch.
+window.addEventListener('popstate', () => {
+    const p = new URLSearchParams(window.location.search);
+    const guid = p.get('mat');
+    if (guid && guid !== materialGuid) {
+        materialGuid = guid;
+        loadLedger();
+    }
+});
+
+// ---------- Bootstrap ----------
+    (async () => {
+        // Bill types are needed for the type column — always load them,
+        // even on the empty/no-item screen.
+        await loadBillTypes();
+
+        if (materialGuid) {
+            // Came in via ?mat= — restore date range and load the ledger.
             const saved = loadSavedFilter();
             if (saved) {
                 currentRange = saved;
@@ -807,9 +1067,25 @@ if (isset($_GET['billtypes']) && $_GET['billtypes'] == 1) {
                 setActiveChip(null);
                 loadLedger();
             } else {
-                applyPreset('month');   // last 30 days
+                applyPreset('month');
             }
-        })();
+        } else {
+            // No item selected — prompt the user to search, and pre-set a
+            // sensible default date range so "تطبيق" isn't a surprise.
+            document.getElementById('matName').textContent = 'ابحث عن صنف';
+            document.getElementById('matSub').textContent  =
+                'اكتب اسم الصنف أو الكود أو الباركود في المربع أعلاه';
+            document.getElementById('listBody').innerHTML =
+                '<tr><td colspan="11" class="empty">لم يتم اختيار صنف بعد.</td></tr>';
+
+            const today = new Date();
+            const from  = dateMinusDays(today, 30);
+            currentRange = { from: fmtDateInput(from), to: fmtDateInput(today) };
+            document.getElementById('dateFrom').value = currentRange.from;
+            document.getElementById('dateTo').value   = currentRange.to;
+            setActiveChip('month');
+        }
+    })();
     </script>
 </body>
 </html>

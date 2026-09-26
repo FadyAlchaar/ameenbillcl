@@ -65,6 +65,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <title>Login - Sales Dashboard</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;900&display=swap" rel="stylesheet">
+<!-- Local icon font — Tabler Icons (MIT) -->
+    <link rel="stylesheet" href="assets/icons/tabler/tabler-icons.min.css">
 <style>
     * { box-sizing: border-box; }
     body {
