@@ -308,10 +308,12 @@ requireLogin(false);
                             <a href="movements.php" class="menu-item"><span class="tile-icon"><i class="ti ti-file-text"></i></span><span>حركة المواد</span></a>
                             <a href="serial-movements.php" class="menu-item"><span class="tile-icon"><i class="ti ti-barcode"></i></span><span>حركة الأرقام التسلسلية</span></a>
                             <a href="customers.php" class="menu-item"><span class="tile-icon"><i class="ti ti-users"></i></span><span>الزبائن</span></a>
-                            <a href="salesmen.php" class="menu-item"><span class="tile-icon"><i class="ti ti-user"></i></span><span>البائعون</span></a>
+                            <a href="salesmen.php" class="menu-item"><span class="tile-icon"><i class="ti ti-user"></i></span><span>مندوبو المبيعات</span></a>
                             <a href="accounts.php" class="menu-item"><span class="tile-icon"><i class="ti ti-wallet"></i></span><span>الحسابات</span></a>
                             <a href="bills.php" class="menu-item"><span class="tile-icon"><i class="ti ti-receipt"></i></span><span>أنماط الفواتير</span></a>
                             <a href="cost-centers.php" class="menu-item"><span class="tile-icon"><i class="ti ti-briefcase"></i></span><span>مراكز التكلفة</span></a>
+                            <a href="customer-statement.php" class="menu-item"><span class="tile-icon"><i class="ti ti-file-invoice"></i></span><span>كشف حساب العميل</span></a>
+                            <a href="exchange-rates.php" class="menu-item"><span class="tile-icon"><i class="ti ti-currency-dollar"></i></span><span>أسعار الصرف</span></a>
                         </div>
                         <div class="menu-section">
                             <div class="menu-section-title">التفضيلات</div>
@@ -393,7 +395,7 @@ requireLogin(false);
             <a href="salesmen.php" class="tile" style="--tile-bg: linear-gradient(135deg, #f59e0b 0%, #b45309 100%);">
                 <div class="tile-top"><span class="tile-icon"><i class="ti ti-user-star"></i></span></div>
                 <div class="tile-body">
-                    <div class="tile-title">البائعون</div>
+                    <div class="tile-title">مندوبو المبيعات</div>
                     <div class="tile-sub">ترتيب البائعين ومبيعاتهم</div>
                 </div>
             </a>
@@ -419,6 +421,20 @@ requireLogin(false);
                 <div class="tile-body">
                     <div class="tile-title">مراكز التكلفة</div>
                     <div class="tile-sub">ملخص وكشوف مراكز التكلفة</div>
+                </div>
+            </a>
+            <a href="customer-statement.php" class="tile" style="--tile-bg: linear-gradient(135deg, #8b6488 0%, #55334c 100%);">
+                <div class="tile-top"><span class="tile-icon"><i class="ti ti-file-invoice"></i></span></div>
+                <div class="tile-body">
+                    <div class="tile-title">كشف حساب العميل</div>
+                    <div class="tile-sub">ملخص وكشوف حسابات العملاء</div>
+                </div>
+            </a>
+           <a href="exchange-rates.php" class="tile" style="--tile-bg: linear-gradient(135deg, #658b64 0%, #33553f 100%);">
+                <div class="tile-top"><span class="tile-icon"><i class="ti ti-currency-dollar"></i></span></div>
+                <div class="tile-body">
+                    <div class="tile-title">أسعار الصرف</div>
+                    <div class="tile-sub">ملخص وكشوف أسعار الصرف</div>
                 </div>
             </a>
         </div>

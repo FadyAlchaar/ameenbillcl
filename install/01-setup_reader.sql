@@ -12,14 +12,16 @@
 --    3.  Adds to db_datareader + grants CONNECT.
 --    4.  Explicit SELECT grants on all dashboard tables.
 --    5.  Creates the wrapper procedures for wrapped reports:
---          - ameenbill_GetMatMovements    (via repMatMoveMultiProduct)
---          - ameenbill_GetSnMovements     (via SNMove)
---          - ameenbill_GetCostCenterLedger (via RepCostGl)
+--          - ameenbill_GetMatMovements      (via repMatMoveMultiProduct)
+--          - ameenbill_GetSnMovements       (via SNMove)
+--          - ameenbill_GetCostCenterLedger  (via RepCostGl)
+--          - ameenbill_GetCustomerStatement (via repCPS)
 --        Every wrapper runs WITH EXECUTE AS OWNER, so internal calls to
 --        Alameen's security functions (fnGetUserSec, fnGetCurrentUserGUID,
 --        fnIsAdmin, …) succeed without needing one grant per function.
 --    6.  Grants EXECUTE on every wrapper present.
---    7.  Populates RepSrcs for each wrapper's SrcTypesguid.
+--    7.  Populates RepSrcs for wrappers that need a one-time namespace
+--        registration. The customer statement self-registers per call.
 --    8.  Verifies — prints a PASS/FAIL table.
 --
 --  WHAT IT CANNOT DO
@@ -167,10 +169,6 @@ GO
 --  functions (fnGetUserSec, fnGetCurrentUserGUID, fnIsAdmin, …) and
 --  internal reads on tables succeed without a per-object grant to the
 --  reader login. The reader only ever needs EXECUTE on the wrapper.
---
---  Auto-discovery inside each wrapper:
---    - base currency from my000 (CurrencyVal = 1)
---    - report user from the most recent admin session in Connections
 -- ═════════════════════════════════════════════════════════════════════
 USE [AlbassaDB2026];
 GO
@@ -385,10 +383,6 @@ GO
 --  Wrapper #3: ameenbill_GetCostCenterLedger
 --  Underlying: RepCostGl
 --  Purpose: general ledger for one cost center.
---
---  This wrapper NEEDS WITH EXECUTE AS OWNER because RepCostGl calls
---  fnGetUserSec internally. Without it, the reader gets
---  "EXECUTE permission was denied on the object 'fnGetUserSec'".
 -- ─────────────────────────────────────────────────────────────────────
 IF OBJECT_ID('dbo.ameenbill_GetCostCenterLedger', 'P') IS NOT NULL
     DROP PROCEDURE dbo.ameenbill_GetCostCenterLedger;
@@ -435,10 +429,10 @@ BEGIN
 
     IF @UserGUID IS NULL
     BEGIN
-        DECLARE @errMsg nvarchar(4000) =
+        DECLARE @errMsg3 nvarchar(4000) =
             N'No Alameen admin session found in Connections. '
           + N'Please log in to Alameen at least once as an administrator.';
-        RAISERROR(@errMsg, 16, 1);
+        RAISERROR(@errMsg3, 16, 1);
         RETURN;
     END
 
@@ -490,6 +484,159 @@ GO
 PRINT '[✓] Step 5c: Wrapper ameenbill_GetCostCenterLedger created.';
 GO
 
+-- ─────────────────────────────────────────────────────────────────────
+--  Wrapper #4: ameenbill_GetCustomerStatement
+--  Underlying: repCPS
+--  Purpose: customer statement — opening balance + ledger of movements.
+--
+--  NOTES
+--    * repCPS requires the RepSrcs namespace to contain not only every
+--      bill type in bt000 (IdSubType=2) but also FOUR fixed GUIDs
+--      (IdSubType=4) that the Alameen .NET client hardcodes for the
+--      voucher side of the ledger (سند قبض، سند صرف). Those four GUIDs
+--      do not exist in any table — they're constants compiled into the
+--      application. Without them repCPS silently drops every voucher
+--      row and returns only the invoice side, which is why an earlier
+--      version of this wrapper produced 8 of the 18 expected rows.
+--    * The registration is refreshed on every call, mirroring what the
+--      client does. The DELETE + INSERT are confined to the RepSrcs
+--      report-registration table — no business data is touched.
+-- ─────────────────────────────────────────────────────────────────────
+IF OBJECT_ID('dbo.ameenbill_GetCustomerStatement', 'P') IS NOT NULL
+    DROP PROCEDURE dbo.ameenbill_GetCustomerStatement;
+GO
+
+CREATE PROCEDURE dbo.ameenbill_GetCustomerStatement
+    @CustPtr            uniqueidentifier,
+    @StartDate          datetime,
+    @EndDate            datetime,
+    @ShowDetails        bit = 0,
+    @ShowRunningBalance bit = 1,
+    @Cash               int = 3,     -- 0=credit only, 1=cash, 2=cheques, 3=all
+    @Post               int = 1,     -- 1=posted only, 0=all
+    @Lang               bit = 0
+WITH EXECUTE AS OWNER
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    DECLARE @NIL     uniqueidentifier = '00000000-0000-0000-0000-000000000000';
+    DECLARE @SrcGuid uniqueidentifier = '9576EECC-A796-44C2-97B0-6045095246C6';
+
+    -- ── Auto-discover base currency ─────────────────────────────
+    DECLARE @CurrencyGUID uniqueidentifier;
+    DECLARE @CurrencyVal  float;
+    SELECT TOP 1 @CurrencyGUID = GUID, @CurrencyVal = CurrencyVal
+    FROM dbo.my000 WHERE CurrencyVal = 1;
+    IF @CurrencyGUID IS NULL
+    BEGIN
+        SET @CurrencyGUID = '378C0ABE-FB27-4E68-BB84-95A4F2D3A137';
+        SET @CurrencyVal  = 1;
+    END
+
+    -- ── Auto-discover admin user ────────────────────────────────
+    DECLARE @UserGUID uniqueidentifier;
+    SELECT TOP 1 @UserGUID = UserGUID
+    FROM dbo.Connections
+    WHERE BranchMask = 9223372036854775807
+      AND UserGUID IS NOT NULL
+      AND UserGUID <> @NIL
+      AND HostId <> HOST_ID()
+    ORDER BY login_time DESC;
+
+    IF @UserGUID IS NULL
+    BEGIN
+        DECLARE @errMsg4 nvarchar(4000) =
+            N'No Alameen admin session found in Connections. '
+          + N'Please log in to Alameen at least once as an administrator.';
+        RAISERROR(@errMsg4, 16, 1);
+        RETURN;
+    END
+
+    -- ── Register RepSrcs for this report ────────────────────────
+    DELETE FROM dbo.RepSrcs WHERE IdTbl = @SrcGuid;
+
+    -- Every bill type from bt000
+    INSERT INTO dbo.RepSrcs (IdTbl, IdType, IdSubType)
+    SELECT @SrcGuid, GUID, 2 FROM dbo.bt000;
+
+    -- The four hardcoded voucher-side GUIDs the Alameen client sends
+    INSERT INTO dbo.RepSrcs (IdTbl, IdType, IdSubType)
+    VALUES
+        (@SrcGuid, '7646EFD5-2CFB-423A-94F7-0B0422583D2B', 4),
+        (@SrcGuid, '18B2BEA4-181E-4282-840E-BB26455405AA', 4),
+        (@SrcGuid, 'D534B940-2F24-4DB9-BAF5-834C2405328B', 4),
+        (@SrcGuid, 'EA69BA80-662D-4FA4-90EE-4D2E1988A8EA', 4);
+
+    -- Sentinel row
+    INSERT INTO dbo.RepSrcs (IdTbl, IdType, IdSubType)
+    VALUES (@SrcGuid, @NIL, 0);
+
+    -- ── Establish temporary admin session ───────────────────────
+    DELETE FROM dbo.Connections WHERE HostId = HOST_ID() AND HostName = HOST_NAME();
+    INSERT INTO dbo.Connections (UserGUID, BranchMask, UserNumber)
+    VALUES (@UserGUID, 9223372036854775807, 1);
+
+    DECLARE @Rid int = CAST(RAND() * 2000000000 AS int);
+
+    -- ── Run the underlying Alameen report ───────────────────────
+    BEGIN TRY
+        EXEC dbo.repCPS
+            @SrcGuid                    = @SrcGuid,
+            @StartDate                  = @StartDate,
+            @EndDate                    = @EndDate,
+            @AccPtr                     = @NIL,
+            @CustPtr                    = @CustPtr,
+            @CurPtr                     = @CurrencyGUID,
+            @CurVal                     = @CurrencyVal,
+            @Post                       = @Post,
+            @Cash                       = @Cash,
+            @Contain                    = N'',
+            @NotContain                 = N'',
+            @UseCheckDate               = 0,
+            @ShowDetails                = @ShowDetails,
+            @UseChkDueDate              = 0,
+            @ShowChk                    = 1,
+            @CostGuid                   = @NIL,
+            @ShowSerialNumbers          = 0,
+            @ShowAccMoved               = 0,
+            @StartBal                   = 0,
+            @bUnmatched                 = 1,
+            @ShwChWithEn                = 0,
+            @ShowDiscountExtra          = 0,
+            @ShowDiscExtDet             = 0,
+            @CondGuid                   = @NIL,
+            @ShowChecked                = 0,
+            @ItemChecked                = -1,
+            @CheckForUsers              = 0,
+            @Rid                        = @Rid,
+            @ShowDebtAgesPreview        = 0,
+            @PeriodsNo                  = 3,
+            @PeriodLength               = 30,
+            @IsEndorsedRecieved         = 0,
+            @IsDiscountedRecieved       = 0,
+            @IsNotShowUnDelivered       = 0,
+            @IsShowChequeDetailsPartly  = 0,
+            @ShowValVat                 = 0,
+            @ShowSaleTax                = 0,
+            @DetailingByCurrencyAccount = 0,
+            @IsGroupedByNoteType        = 0,
+            @ShowClosedCust             = 0,
+            @UseUnit                    = 0,
+            @ShowRunningBalance         = @ShowRunningBalance;
+    END TRY
+    BEGIN CATCH
+        DELETE FROM dbo.Connections WHERE HostId = HOST_ID() AND HostName = HOST_NAME();
+        THROW;
+    END CATCH
+
+    DELETE FROM dbo.Connections WHERE HostId = HOST_ID() AND HostName = HOST_NAME();
+END
+GO
+
+PRINT '[✓] Step 5d: Wrapper ameenbill_GetCustomerStatement created.';
+GO
+
 -- ═════════════════════════════════════════════════════════════════════
 --  STEP 6 — EXECUTE grants on wrapper procedures
 -- ═════════════════════════════════════════════════════════════════════
@@ -514,16 +661,17 @@ BEGIN
     PRINT '[✓] Step 6c: EXECUTE on ameenbill_GetCostCenterLedger.';
 END
 
--- Add future wrappers here:
--- IF OBJECT_ID('dbo.ameenbill_GetSomething', 'P') IS NOT NULL
--- BEGIN
---     GRANT EXECUTE ON dbo.ameenbill_GetSomething TO [alameenbill_reader];
---     PRINT '[✓] Step 6d: EXECUTE on ameenbill_GetSomething.';
--- END
+IF OBJECT_ID('dbo.ameenbill_GetCustomerStatement', 'P') IS NOT NULL
+BEGIN
+    GRANT EXECUTE ON dbo.ameenbill_GetCustomerStatement TO [alameenbill_reader];
+    PRINT '[✓] Step 6d: EXECUTE on ameenbill_GetCustomerStatement.';
+END
 GO
 
 -- ═════════════════════════════════════════════════════════════════════
---  STEP 7 — Populate RepSrcs for wrapped reports
+--  STEP 7 — One-time RepSrcs registration for wrappers that need it.
+--  The customer statement self-registers on every call, so it's NOT
+--  listed here. The others only need their namespace created once.
 -- ═════════════════════════════════════════════════════════════════════
 USE [AlbassaDB2026];
 GO
@@ -584,6 +732,15 @@ SELECT 'can SELECT bu000',
               AND pe.state_desc = 'GRANT')
             THEN 'PASS' ELSE 'FAIL' END
 UNION ALL
+SELECT 'can SELECT RepSrcs',
+       CASE WHEN EXISTS (
+            SELECT 1 FROM sys.database_permissions pe
+            WHERE pe.grantee_principal_id = USER_ID('alameenbill_reader')
+              AND pe.major_id = OBJECT_ID('dbo.RepSrcs')
+              AND pe.permission_name = 'SELECT'
+              AND pe.state_desc = 'GRANT')
+            THEN 'PASS' ELSE 'FAIL' END
+UNION ALL
 SELECT 'wrapper movements exists',
        CASE WHEN OBJECT_ID('dbo.ameenbill_GetMatMovements', 'P') IS NOT NULL
             THEN 'PASS' ELSE 'FAIL' END
@@ -594,6 +751,10 @@ SELECT 'wrapper SN exists',
 UNION ALL
 SELECT 'wrapper cost center exists',
        CASE WHEN OBJECT_ID('dbo.ameenbill_GetCostCenterLedger', 'P') IS NOT NULL
+            THEN 'PASS' ELSE 'FAIL' END
+UNION ALL
+SELECT 'wrapper customer statement exists',
+       CASE WHEN OBJECT_ID('dbo.ameenbill_GetCustomerStatement', 'P') IS NOT NULL
             THEN 'PASS' ELSE 'FAIL' END
 UNION ALL
 SELECT 'EXECUTE on movements',
@@ -619,6 +780,15 @@ SELECT 'EXECUTE on cost center',
             SELECT 1 FROM sys.database_permissions pe
             WHERE pe.grantee_principal_id = USER_ID('alameenbill_reader')
               AND pe.major_id = OBJECT_ID('dbo.ameenbill_GetCostCenterLedger')
+              AND pe.permission_name = 'EXECUTE'
+              AND pe.state_desc = 'GRANT')
+            THEN 'PASS' ELSE 'FAIL' END
+UNION ALL
+SELECT 'EXECUTE on customer statement',
+       CASE WHEN EXISTS (
+            SELECT 1 FROM sys.database_permissions pe
+            WHERE pe.grantee_principal_id = USER_ID('alameenbill_reader')
+              AND pe.major_id = OBJECT_ID('dbo.ameenbill_GetCustomerStatement')
               AND pe.permission_name = 'EXECUTE'
               AND pe.state_desc = 'GRANT')
             THEN 'PASS' ELSE 'FAIL' END
@@ -649,7 +819,7 @@ SELECT 'no DENY for reader',
             THEN 'PASS' ELSE 'FAIL' END;
 GO
 
--- Final: effective permissions check via impersonation
+-- ── Effective permissions via impersonation ────────────────────
 EXECUTE AS USER = 'alameenbill_reader';
 SELECT 'can EXECUTE movements' AS test,
        CASE WHEN HAS_PERMS_BY_NAME('dbo.ameenbill_GetMatMovements', 'OBJECT', 'EXECUTE') = 1
@@ -663,8 +833,16 @@ SELECT 'can EXECUTE cost center',
        CASE WHEN HAS_PERMS_BY_NAME('dbo.ameenbill_GetCostCenterLedger', 'OBJECT', 'EXECUTE') = 1
             THEN 'PASS' ELSE 'FAIL' END
 UNION ALL
+SELECT 'can EXECUTE customer statement',
+       CASE WHEN HAS_PERMS_BY_NAME('dbo.ameenbill_GetCustomerStatement', 'OBJECT', 'EXECUTE') = 1
+            THEN 'PASS' ELSE 'FAIL' END
+UNION ALL
 SELECT 'can SELECT bu000',
        CASE WHEN HAS_PERMS_BY_NAME('dbo.bu000', 'OBJECT', 'SELECT') = 1
+            THEN 'PASS' ELSE 'FAIL' END
+UNION ALL
+SELECT 'can SELECT RepSrcs',
+       CASE WHEN HAS_PERMS_BY_NAME('dbo.RepSrcs', 'OBJECT', 'SELECT') = 1
             THEN 'PASS' ELSE 'FAIL' END;
 REVERT;
 GO
@@ -679,14 +857,3 @@ PRINT '  creates the admin session in dbo.Connections, which the';
 PRINT '  wrappers read to determine which user to impersonate.';
 PRINT '════════════════════════════════════════════════════════════';
 GO
--- ═════════════════════════════════════════════════════════════════════
---  Check the Wrappers installed
--- ═════════════════════════════════════════════════════════════════════
-SELECT name FROM sys.procedures
-WHERE name IN ('repMatMoveMultiProduct', 'SNMove');
-
--- What SrcTypesguids already exist in this install?
-SELECT IdTbl, COUNT(*) AS n
-FROM RepSrcs
-GROUP BY IdTbl
-ORDER BY n DESC;

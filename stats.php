@@ -527,18 +527,20 @@ if (isset($_GET['kpi']) && $_GET['kpi'] == 1) {
                     <div class="menu-dropdown" id="menuDropdown" role="menu">
                         <div class="menu-section">
                             <div class="menu-section-title">التنقل</div>
-                            <a href="index.php" class="menu-item"><span class="menu-item-icon"><i class="ti ti-home"></i></span><span>الرئيسية</span></a>
-                            <a href="dashboard.php" class="menu-item"><span class="menu-item-icon"><i class="ti ti-layout-dashboard"></i></span><span>لوحة المتابعة</span></a>
-                            <a href="stats.php" class="menu-item"><span class="menu-item-icon"><i class="ti ti-chart-bar"></i></span><span>الإحصائيات</span></a>
-                            <a href="products.php" class="menu-item"><span class="menu-item-icon"><i class="ti ti-package"></i></span><span>الأصناف</span></a>
-                            <a href="inventory.php" class="menu-item"><span class="menu-item-icon"><i class="ti ti-building-warehouse"></i></span><span>المخزون</span></a>
-                            <a href="movements.php" class="menu-item"><span class="menu-item-icon"><i class="ti ti-file-text"></i></span><span>حركة المواد</span></a>
-                            <a href="serial-movements.php" class="menu-item"><span class="menu-item-icon"><i class="ti ti-barcode"></i></span><span>حركة الأرقام التسلسلية</span></a>
-                            <a href="customers.php" class="menu-item"><span class="menu-item-icon"><i class="ti ti-users"></i></span><span>الزبائن</span></a>
-                            <a href="salesmen.php" class="menu-item"><span class="menu-item-icon"><i class="ti ti-user"></i></span><span>البائعون</span></a>
-                            <a href="accounts.php" class="menu-item"><span class="menu-item-icon"><i class="ti ti-wallet"></i></span><span>الحسابات</span></a>
-                            <a href="bills.php" class="menu-item"><span class="menu-item-icon"><i class="ti ti-receipt"></i></span><span>أنماط الفواتير</span></a>
-                            <a href="cost-centers.php" class="menu-item"><span class="menu-item-icon"><i class="ti ti-briefcase"></i></span><span>مراكز التكلفة</span></a>
+                            <a href="index.php" class="menu-item"><span class="tile-icon"><i class="ti ti-home"></i></span><span>الرئيسية</span></a>
+                            <a href="dashboard.php" class="menu-item"><span class="tile-icon"><i class="ti ti-layout-dashboard"></i></span><span>لوحة المتابعة</span></a>
+                            <a href="stats.php" class="menu-item"><span class="tile-icon"><i class="ti ti-chart-bar"></i></span><span>الإحصائيات</span></a>
+                            <a href="products.php" class="menu-item"><span class="tile-icon"><i class="ti ti-package"></i></span><span>الأصناف</span></a>
+                            <a href="inventory.php" class="menu-item"><span class="tile-icon"><i class="ti ti-building-warehouse"></i></span><span>المخزون</span></a>
+                            <a href="movements.php" class="menu-item"><span class="tile-icon"><i class="ti ti-file-text"></i></span><span>حركة المواد</span></a>
+                            <a href="serial-movements.php" class="menu-item"><span class="tile-icon"><i class="ti ti-barcode"></i></span><span>حركة الأرقام التسلسلية</span></a>
+                            <a href="customers.php" class="menu-item"><span class="tile-icon"><i class="ti ti-users"></i></span><span>الزبائن</span></a>
+                            <a href="salesmen.php" class="menu-item"><span class="tile-icon"><i class="ti ti-user"></i></span><span>مندوبو المبيعات</span></a>
+                            <a href="accounts.php" class="menu-item"><span class="tile-icon"><i class="ti ti-wallet"></i></span><span>الحسابات</span></a>
+                            <a href="bills.php" class="menu-item"><span class="tile-icon"><i class="ti ti-receipt"></i></span><span>أنماط الفواتير</span></a>
+                            <a href="cost-centers.php" class="menu-item"><span class="tile-icon"><i class="ti ti-briefcase"></i></span><span>مراكز التكلفة</span></a>
+                            <a href="customer-statement.php" class="menu-item"><span class="tile-icon"><i class="ti ti-file-invoice"></i></span><span>كشف حساب العميل</span></a>
+                            <a href="exchange-rates.php" class="menu-item"><span class="tile-icon"><i class="ti ti-currency-dollar"></i></span><span>أسعار الصرف</span></a>
                         </div>
                         <div class="menu-section">
                             <div class="menu-section-title">التفضيلات</div>
@@ -555,7 +557,7 @@ if (isset($_GET['kpi']) && $_GET['kpi'] == 1) {
                         </div>
                     </div>
                 </div>
-                <h1>📊 لوحة الإحصائيات</h1>
+                <h1><span class="tile-icon"><i class="ti ti-chart-bar"></i></span> لوحة الإحصائيات</h1>
             </div>
         </div>
 
