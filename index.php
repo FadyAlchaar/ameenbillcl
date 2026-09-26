@@ -347,7 +347,7 @@ if (isset($_GET['details']) && $_GET['details'] == 1 && isset($_GET['guid'])) {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
-    <title>بياناتي ويب - تحديث مباشر</title>
+    <title>QuantuSphere Web - تحديث مباشر</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;900&family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&display=swap" rel="stylesheet">
@@ -1810,7 +1810,7 @@ if (isset($_GET['details']) && $_GET['details'] == 1 && isset($_GET['guid'])) {
                     </div>
                 </div>
             </div>
-            <h1>📊 بياناتي ويب</h1>
+            <h1>📊 QuantuSphere Web</h1>
         </div>
         <div class="search-wrap" id="searchWrap">
             <input type="text" id="searchInput" class="search-input"
