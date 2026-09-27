@@ -1329,6 +1329,32 @@ if (isset($_GET['details']) && $_GET['details'] == 1 && isset($_GET['guid'])) {
             .print-btn span.print-btn-label { display: none; }
         }
 
+        /* Discount display toggle (value ⇄ percentage) */
+        .discount-toggle-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            background: rgba(255,255,255,0.08);
+            border: 1px solid rgba(255,255,255,0.25);
+            color: var(--header-fg);
+            padding: 5px 11px;
+            border-radius: 999px;
+            font-size: 0.75rem;
+            font-weight: 700;
+            font-family: inherit;
+            cursor: pointer;
+            transition: background 0.15s, border-color 0.15s;
+        }
+        .discount-toggle-btn:hover {
+            background: rgba(255,255,255,0.18);
+            border-color: rgba(255,255,255,0.45);
+        }
+        .discount-toggle-btn i { font-size: 0.95rem; line-height: 1; }
+        @media (max-width: 600px) {
+            .discount-toggle-btn .discount-toggle-label { display: none; }
+            .discount-toggle-btn { padding: 5px 9px; }
+        }
+
         @keyframes cardUpdated {
             0%   { background: rgba(184,134,60,0.22); }
             100% { background: var(--surface); }
@@ -1885,6 +1911,11 @@ if (isset($_GET['details']) && $_GET['details'] == 1 && isset($_GET['guid'])) {
             <div class="details-header">
                 <span>🧾 تفاصيل الفاتورة</span>
                 <span style="display:flex;gap:6px;align-items:center;">
+                    <button type="button" class="discount-toggle-btn" id="discountToggleBtn"
+                            title="تبديل طريقة عرض الحسم بين القيمة والنسبة">
+                        <i class="ti ti-coin" id="discountToggleIcon"></i>
+                        <span id="discountToggleLabel" class="discount-toggle-label">قيمة</span>
+                    </button>
                     <a href="#" class="customer-btn disabled" id="customerBtn" title="فتح ملف الزبون">
                         👤 <span class="customer-btn-label">الزبون</span>
                     </a>
@@ -3056,9 +3087,50 @@ if (isset($_GET['details']) && $_GET['details'] == 1 && isset($_GET['guid'])) {
     let loadMoreOffset = 1;
     let hasMore = true;
 
-    // If the session expires, every endpoint answers 401. Send the user to
+        // If the session expires, every endpoint answers 401. Send the user to
     // the login page instead of rendering "error: unauthenticated".
     let _redirectingToLogin = false;
+
+    // ── Discount display mode ────────────────────────────────────
+    // 'value'   → show the raw discount amount (e.g. 23.25)
+    // 'percent' → show the discount as % of line total (e.g. 3.00%)
+    // Matches Alameen's printed bill, which shows percentages per row
+    // while the totals footer stays in currency.
+    let discountDisplay = 'value';
+    try {
+        const _saved = localStorage.getItem('dashboardDiscountDisplay');
+        if (_saved === 'value' || _saved === 'percent') discountDisplay = _saved;
+    } catch (e) {}
+
+    // Cache of the last rendered details payload so toggling the mode
+    // can re-render instantly without a round-trip to the server.
+    let lastDetailsData = null;
+
+    function updateDiscountToggleUI() {
+        const icon  = document.getElementById('discountToggleIcon');
+        const label = document.getElementById('discountToggleLabel');
+        const btn   = document.getElementById('discountToggleBtn');
+        if (!btn) return;
+        if (discountDisplay === 'percent') {
+            if (icon)  icon.className = 'ti ti-percentage';
+            if (label) label.textContent = 'نسبة %';
+            btn.title = 'يُعرض الحسم حالياً كنسبة مئوية — اضغط للتبديل إلى القيمة';
+        } else {
+            if (icon)  icon.className = 'ti ti-coin';
+            if (label) label.textContent = 'قيمة';
+            btn.title = 'يُعرض الحسم حالياً كقيمة رقمية — اضغط للتبديل إلى النسبة';
+        }
+    }
+
+    document.getElementById('discountToggleBtn').addEventListener('click', () => {
+        discountDisplay = discountDisplay === 'value' ? 'percent' : 'value';
+        try { localStorage.setItem('dashboardDiscountDisplay', discountDisplay); } catch (e) {}
+        updateDiscountToggleUI();
+        if (lastDetailsData) renderDetails(lastDetailsData, false);
+    });
+
+    // Initialize the button label from the saved preference
+    updateDiscountToggleUI();
     function handleAuthFailure(resp) {
         if (resp && resp.status === 401) {
             if (!_redirectingToLogin) {
@@ -3318,6 +3390,22 @@ if (isset($_GET['details']) && $_GET['details'] == 1 && isset($_GET['guid'])) {
             sumExtra += extra;
             sumNet   += net;
 
+            // Discount cell: raw value or percentage of the line total.
+            // Guard against zero/negative totals (fully-discounted lines,
+            // price corrections). When percent mode can't compute safely,
+            // fall back to the raw value so the cell is never blank.
+            let discCell;
+            if (discountDisplay === 'percent') {
+                if (total > 0) {
+                    const pct = (disc / total) * 100;
+                    discCell = pct.toFixed(2) + '%';
+                } else {
+                    discCell = fmtNum(disc);
+                }
+            } else {
+                discCell = fmtNum(disc);
+            }
+
             html += `<tr>
                 <td>${i + 1}</td>
                 <td>${escapeHtml(row.ItemName)}</td>
@@ -3326,7 +3414,7 @@ if (isset($_GET['details']) && $_GET['details'] == 1 && isset($_GET['guid'])) {
                 <td>${escapeHtml(row.Unit) || '-'}</td>
                 <td>${fmtNum(price)}</td>
                 <td>${fmtNum(total)}</td>
-                <td>${fmtNum(disc)}</td>
+                <td>${discCell}</td>
                 <td>${fmtNum(extra)}</td>
                 <td>${fmtNum(net)}</td>
             </tr>`;
@@ -3420,8 +3508,12 @@ if (isset($_GET['details']) && $_GET['details'] == 1 && isset($_GET['guid'])) {
         if (hdr && hdr.CustGUID) setCustomerButton(hdr.CustGUID);
         else                     setCustomerButton(null);
 
-        // Signature of what we just rendered, so refresh can compare
+                // Signature of what we just rendered, so refresh can compare
         lastDetailsSignature = JSON.stringify(data);
+
+        // Remember the payload so the discount-mode toggle can
+        // re-render locally instead of re-fetching from the server.
+        lastDetailsData = data;
 
         // If this was a refresh, flash the header and update the card in the list
         if (isRefresh && hdr) {
